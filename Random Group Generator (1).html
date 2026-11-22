@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Random Group Generator</title>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<style>
+  :root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; background: #f8fafc; }
+  @media (prefers-color-scheme: dark) { body { background: #020617; } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+"use strict";
+const { useState, useMemo, useRef } = React;
+const mk = (nodes) => function Icon({ size = 24, className = "" }) {
+    return React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", className: className, "aria-hidden": "true" }, nodes.map((d, i) => typeof d === "string" ? React.createElement("path", { key: i, d: d }) : React.createElement(d[0], Object.assign({ key: i }, d[1]))));
+};
+const Users = mk(["M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", ["circle", { cx: 9, cy: 7, r: 4 }], "M22 21v-2a4 4 0 0 0-3-3.87", "M16 3.13a4 4 0 0 1 0 7.75"]);
+const Shuffle = mk(["M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22", "m18 2 4 4-4 4", "M2 6h1.9c1.5 0 2.9.9 3.6 2.2", "M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8", "m18 14 4 4-4 4"]);
+const Copy = mk([["rect", { x: 8, y: 8, width: 14, height: 14, rx: 2 }], "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"]);
+const Download = mk(["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4", "m7 10 5 5 5-5", "M12 15V3"]);
+const Trash2 = mk(["M3 6h18", "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6", "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2", "M10 11v6", "M14 11v6"]);
+const ListPlus = mk(["M11 12H3", "M16 6H3", "M16 18H3", "M18 9v6", "M21 12h-6"]);
+const Crown = mk(["m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7z", "M5 20h14"]);
+const Check = mk(["M20 6 9 17l-5-5"]);
+const Hash = mk(["M4 9h16", "M4 15h16", "M10 3 8 21", "M16 3l-2 18"]);
+const SAMPLE = ["Ava Johnson", "Liam Smith", "Noah Williams", "Emma Brown", "Olivia Jones", "Elijah Garcia", "Sophia Miller", "Lucas Davis", "Mia Rodriguez", "Mason Martinez", "Isabella Hernandez", "Ethan Lopez", "Amelia Wilson", "Logan Anderson", "Harper Thomas", "James Taylor", "Evelyn Moore", "Benjamin Jackson", "Abigail Martin", "Henry Lee", "Charlotte Perez", "Jack Thompson", "Ella White", "Owen Harris"].join("\n");
+// Unbiased Fisher-Yates shuffle (returns a new array)
+function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+// Split into k groups, sizes differ by at most 1
+function splitEven(list, k) {
+    const base = Math.floor(list.length / k), extra = list.length % k;
+    const out = [];
+    let idx = 0;
+    for (let g = 0; g < k; g++) {
+        const size = base + (g < extra ? 1 : 0);
+        out.push(list.slice(idx, idx + size));
+        idx += size;
+    }
+    return out;
+}
+function buildGroups(names, mode, count, size, evenRemainder) {
+    const n = names.length;
+    if (!n)
+        return [];
+    const shuffled = shuffle(names);
+    let chunks;
+    if (mode === "count") {
+        chunks = splitEven(shuffled, Math.min(Math.max(1, count), n));
+    }
+    else {
+        const s = Math.max(1, size);
+        if (evenRemainder)
+            chunks = splitEven(shuffled, Math.ceil(n / s));
+        else {
+            chunks = [];
+            for (let i = 0; i < n; i += s)
+                chunks.push(shuffled.slice(i, i + s));
+        }
+    }
+    return chunks.map(members => ({ members, leader: Math.floor(Math.random() * members.length) }));
+}
+function Toggle({ checked, onChange, label }) {
+    return (React.createElement("label", { className: "flex items-center justify-between gap-3 cursor-pointer select-none py-1" },
+        React.createElement("span", { className: "text-sm text-slate-700 dark:text-slate-300" }, label),
+        React.createElement("button", { type: "button", role: "switch", "aria-checked": checked, onClick: () => onChange(!checked), className: "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors " + (checked ? "bg-indigo-600" : "bg-slate-300 dark:bg-slate-700") },
+            React.createElement("span", { className: "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform " + (checked ? "translate-x-5" : "translate-x-0.5") }))));
+}
+function App() {
+    const [text, setText] = useState("");
+    const [mode, setMode] = useState("count");
+    const [count, setCount] = useState(4);
+    const [size, setSize] = useState(4);
+    const [evenRemainder, setEvenRemainder] = useState(true);
+    const [leaders, setLeaders] = useState(false);
+    const [numbered, setNumbered] = useState(true);
+    const [groups, setGroups] = useState([]);
+    const [copied, setCopied] = useState(false);
+    const [note, setNote] = useState("");
+    const resultsRef = useRef(null);
+    const names = useMemo(() => text.split("\n").map(s => s.trim().replace(/\s+/g, " ")).filter(Boolean), [text]);
+    const hasGroups = groups.length > 0;
+    const generate = () => {
+        if (!names.length) {
+            setNote("Add at least one name first.");
+            return;
+        }
+        setNote("");
+        setGroups(buildGroups(names, mode, parseInt(count) || 1, parseInt(size) || 1, evenRemainder));
+        setTimeout(() => resultsRef.current && resultsRef.current.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+    };
+    const plainText = () => groups.map((g, i) => "Group " + (i + 1) + " (" + g.members.length + ")\n" +
+        g.members.map((m, j) => (numbered ? (j + 1) + ". " : "- ") + m + (leaders && j === g.leader ? " (Leader)" : "")).join("\n")).join("\n\n");
+    const copyAll = async () => {
+        const t = plainText();
+        try {
+            await navigator.clipboard.writeText(t);
+        }
+        catch (e) {
+            const ta = document.createElement("textarea");
+            ta.value = t;
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+                document.execCommand("copy");
+            }
+            catch (e2) { }
+            document.body.removeChild(ta);
+        }
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1800);
+    };
+    const csvCell = v => '"' + String(v).replace(/"/g, '""') + '"';
+    const downloadCsv = async () => {
+        const rows = [["Group", "Member", "Role"]];
+        groups.forEach((g, i) => g.members.forEach((m, j) => rows.push(["Group " + (i + 1), m, leaders && j === g.leader ? "Leader" : "Member"])));
+        const csv = rows.map(r => r.map(csvCell).join(",")).join("\r\n");
+        try {
+            const dl = await window.claude.use("downloads");
+            if (dl) {
+                await dl.save({ filename: "groups.csv", data: csv });
+                return;
+            }
+        }
+        catch (e) {
+            if (e && e.code === "declined")
+                return;
+        }
+        try {
+            const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "groups.csv";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+        catch (e) {
+            setNote("Download isn’t available here. Use “Copy All Groups” instead.");
+        }
+    };
+    const inputCls = "w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500";
+    const card = "rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm";
+    const btnGhost = "inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors";
+    return (React.createElement("div", { className: "min-h-screen text-slate-900 dark:text-slate-100" },
+        React.createElement("div", { className: "mx-auto max-w-6xl px-4 py-8 sm:px-6" },
+            React.createElement("header", { className: "mb-8 flex items-center gap-3" },
+                React.createElement("div", { className: "rounded-xl bg-indigo-600 p-2.5 text-white shadow" },
+                    React.createElement(Users, { size: 24 })),
+                React.createElement("div", null,
+                    React.createElement("h1", { className: "text-2xl font-bold tracking-tight" }, "Random Group Generator"),
+                    React.createElement("p", { className: "text-sm text-slate-500 dark:text-slate-400" }, "Paste names, pick a mode, and shuffle fair groups in one click."))),
+            React.createElement("div", { className: "grid gap-6 lg:grid-cols-5" },
+                React.createElement("section", { className: card + " p-5 lg:col-span-3" },
+                    React.createElement("div", { className: "mb-3 flex flex-wrap items-center justify-between gap-2" },
+                        React.createElement("h2", { className: "font-semibold" }, "Names"),
+                        React.createElement("span", { className: "rounded-full bg-indigo-50 dark:bg-indigo-950 px-3 py-1 text-xs font-semibold text-indigo-700 dark:text-indigo-300" },
+                            names.length,
+                            " valid ",
+                            names.length === 1 ? "name" : "names")),
+                    React.createElement("textarea", { value: text, onChange: e => setText(e.target.value), rows: 14, placeholder: "Paste one name per line…\nAva Johnson\nLiam Smith", className: inputCls + " h-72 resize-y leading-relaxed" }),
+                    React.createElement("div", { className: "mt-3 flex flex-wrap gap-2" },
+                        React.createElement("button", { onClick: () => { setText(SAMPLE); setNote(""); }, className: btnGhost },
+                            React.createElement(ListPlus, { size: 16 }),
+                            " Load Sample List"),
+                        React.createElement("button", { onClick: () => { setText(""); setGroups([]); setNote(""); }, className: btnGhost + " hover:!text-red-600" },
+                            React.createElement(Trash2, { size: 16 }),
+                            " Clear All"))),
+                React.createElement("section", { className: card + " p-5 lg:col-span-2" },
+                    React.createElement("h2", { className: "mb-3 font-semibold" }, "Grouping"),
+                    React.createElement("div", { className: "mb-4 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 dark:bg-slate-800 p-1" }, [["count", "Number of groups"], ["size", "Group size"]].map(([k, l]) => (React.createElement("button", { key: k, onClick: () => setMode(k), className: "rounded-lg px-3 py-2 text-sm font-medium transition " + (mode === k ? "bg-white dark:bg-slate-950 text-indigo-700 dark:text-indigo-300 shadow-sm" : "text-slate-600 dark:text-slate-400") }, l)))),
+                    mode === "count" ? (React.createElement("div", null,
+                        React.createElement("label", { className: "mb-1 block text-sm font-medium" }, "How many groups?"),
+                        React.createElement("input", { type: "number", min: "1", value: count, onChange: e => setCount(e.target.value), className: inputCls }),
+                        React.createElement("p", { className: "mt-1 text-xs text-slate-500 dark:text-slate-400" }, "Names are spread as evenly as possible."))) : (React.createElement("div", null,
+                        React.createElement("label", { className: "mb-1 block text-sm font-medium" }, "Max members per group"),
+                        React.createElement("input", { type: "number", min: "1", value: size, onChange: e => setSize(e.target.value), className: inputCls }),
+                        React.createElement("div", { className: "mt-3 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 dark:bg-slate-800 p-1" }, [[true, "Distribute remainders evenly"], [false, "Keep a smaller group"]].map(([v, l]) => (React.createElement("button", { key: String(v), onClick: () => setEvenRemainder(v), className: "rounded-lg px-2 py-2 text-xs font-medium transition " + (evenRemainder === v ? "bg-white dark:bg-slate-950 text-indigo-700 dark:text-indigo-300 shadow-sm" : "text-slate-600 dark:text-slate-400") }, l)))))),
+                    React.createElement("div", { className: "mt-5 divide-y divide-slate-100 dark:divide-slate-800 border-t border-slate-100 dark:border-slate-800 pt-3" },
+                        React.createElement(Toggle, { checked: leaders, onChange: setLeaders, label: "Assign a random Group Leader" }),
+                        React.createElement(Toggle, { checked: numbered, onChange: setNumbered, label: "Numbered member lists" })),
+                    React.createElement("button", { onClick: generate, className: "mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-base font-semibold text-white shadow-md transition hover:bg-indigo-700 active:scale-[0.99]" },
+                        React.createElement(Shuffle, { size: 20 }),
+                        " ",
+                        hasGroups ? "Reshuffle" : "Randomize Groups"),
+                    note && React.createElement("p", { className: "mt-2 text-sm text-red-600 dark:text-red-400" }, note))),
+            hasGroups && (React.createElement("section", { ref: resultsRef, className: "mt-8" },
+                React.createElement("div", { className: "mb-4 flex flex-wrap items-center justify-between gap-3" },
+                    React.createElement("h2", { className: "text-lg font-semibold" },
+                        groups.length,
+                        " ",
+                        groups.length === 1 ? "group" : "groups",
+                        " ",
+                        React.createElement("span", { className: "font-normal text-slate-500 dark:text-slate-400" },
+                            "\u00B7 ",
+                            names.length,
+                            " people")),
+                    React.createElement("div", { className: "flex flex-wrap gap-2" },
+                        React.createElement("button", { onClick: copyAll, className: btnGhost },
+                            copied ? React.createElement(Check, { size: 16, className: "text-green-600" }) : React.createElement(Copy, { size: 16 }),
+                            " ",
+                            copied ? "Copied!" : "Copy All Groups"),
+                        React.createElement("button", { onClick: downloadCsv, className: btnGhost },
+                            React.createElement(Download, { size: 16 }),
+                            " Download CSV"))),
+                React.createElement("div", { className: "grid gap-4 sm:grid-cols-2 lg:grid-cols-3" }, groups.map((g, i) => (React.createElement("article", { key: i, className: card + " overflow-hidden" },
+                    React.createElement("div", { className: "flex items-center justify-between bg-indigo-50 dark:bg-indigo-950/60 px-4 py-3" },
+                        React.createElement("h3", { className: "flex items-center gap-1.5 font-semibold text-indigo-900 dark:text-indigo-200" },
+                            React.createElement(Hash, { size: 15 }),
+                            "Group ",
+                            i + 1),
+                        React.createElement("span", { className: "rounded-full bg-white dark:bg-slate-900 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300 shadow-sm" },
+                            g.members.length,
+                            " ",
+                            g.members.length === 1 ? "member" : "members")),
+                    React.createElement("ul", { className: "divide-y divide-slate-100 dark:divide-slate-800 px-4 py-1" }, g.members.map((m, j) => (React.createElement("li", { key: j, className: "flex items-center gap-2 py-2 text-sm" },
+                        numbered && React.createElement("span", { className: "w-5 shrink-0 text-right text-xs tabular-nums text-slate-400" },
+                            j + 1,
+                            "."),
+                        React.createElement("span", { className: "min-w-0 flex-1 truncate" }, m),
+                        leaders && j === g.leader && (React.createElement("span", { className: "inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:text-amber-300" },
+                            React.createElement(Crown, { size: 12 }),
+                            " Leader")))))))))))))));
+}
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App, null));
+
+</script>
+</body>
+</html>
